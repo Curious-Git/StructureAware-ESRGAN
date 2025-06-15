@@ -1,32 +1,29 @@
 # Structure-Aware ESRGAN
 
-This project enhances ESRGAN with a custom **Structure-Aware Perceptual Loss** that better preserves edges and structural details in super-resolved images.
+Enhanced ESRGAN model with Structure-Aware Perceptual Loss for improved edge and detail preservation in super-resolution.
 
-## 🔧 Features
-- Integrated Sobel/Canny edge loss module
-- Combines Perceptual + Adversarial + Structure losses
-- Compatible with DIV2K, Set5/14 datasets
+## Features
+- RRDB-based ESRGAN architecture
+- Structure-aware loss using Sobel/Canny edge detectors
+- Perceptual loss using pretrained VGG19
+- Adversarial loss with discriminator
+- DIV2K dataset support
 
-## 🧠 Loss Function
-
-Total Loss = perceptual_loss + adversarial_loss + structure_loss
-
-## 🚀 Getting Started
+## Setup
 
 ```bash
-git clone https://github.com/<your-username>/StructureAware-ESRGAN.git
-cd StructureAware-ESRGAN
 pip install -r requirements.txt
+pip install git+https://github.com/xinntao/BasicSR.git@40b45fa
 ```
 
-## 🏃 Train
+## Training
 
 ```bash
 python train.py --config config/train_config.json
 ```
 
-## 📈 Evaluate
+## Inference
 
 ```bash
-python test.py --input data/val
+python test.py --input <low_res_folder> --output <output_folder>
 ```

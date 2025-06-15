@@ -5,7 +5,7 @@ import numpy as np
 
 class StructureAwareLoss(torch.nn.Module):
     def __init__(self, method='sobel'):
-        super(StructureAwareLoss, self).__init__()
+        super().__init__()
         self.method = method
 
     def extract_edges(self, img_tensor):
@@ -18,10 +18,7 @@ class StructureAwareLoss(torch.nn.Module):
                 edges = cv2.Sobel(img_gray, cv2.CV_64F, 1, 1, ksize=3)
             elif self.method == 'canny':
                 edges = cv2.Canny(img_gray, 100, 200)
-            else:
-                raise ValueError("Unsupported method")
-            edges = edges / 255.0
-            edge_maps.append(edges)
+            edge_maps.append(edges / 255.0)
         edge_tensor = torch.tensor(np.expand_dims(np.array(edge_maps), 1), dtype=torch.float32).to(img_tensor.device)
         return edge_tensor
 

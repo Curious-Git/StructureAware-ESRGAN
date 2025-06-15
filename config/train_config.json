@@ -1,6 +1,9 @@
 {
-  "train_dataset": "DIV2K",
-  "batch_size": 16,
-  "epochs": 100,
-  "lr": 0.0002
+  "epochs": 5,
+  "batch_size": 4,
+  "lr": 0.0002,
+  "train_hr_dir": "data/train_HR",
+  "train_lr_dir": "data/train_LR",
+  "image_size": 128,
+  "save_every": 1
 }
