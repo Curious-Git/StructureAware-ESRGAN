@@ -22,8 +22,4 @@ pip install git+https://github.com/xinntao/BasicSR.git@40b45fa
 python train.py --config config/train_config.json
 ```
 
-## Inference
 
-```bash
-python test.py --input <low_res_folder> --output <output_folder>
-```
