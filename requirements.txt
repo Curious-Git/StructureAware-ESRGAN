@@ -1,0 +1,6 @@
+torch>=1.9
+torchvision
+opencv-python
+numpy
+scikit-image
+matplotlib
