@@ -7,6 +7,8 @@ from losses.structure_loss import StructureAwareLoss
 from utils.dataloader import SRDataset
 import json, os
 from tqdm import tqdm
+from models.rrdb import RRDBNet
+generator=RRDBNet()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -15,7 +17,7 @@ def load_config(config_path):
         return json.load(f)
 
 def train(config):
-    model = RRDB().to(device)
+    model = RRDBNet(in_channels=3, out_channels=3, num_feat=64, num_blocks=23).to(device)
     dataset = SRDataset(config["train_lr_dir"], config["train_hr_dir"], config["image_size"])
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
 
