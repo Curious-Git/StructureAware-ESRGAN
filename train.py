@@ -17,7 +17,6 @@ def load_config(config_path):
         return json.load(f)
 
 def train(config, resume_checkpoint=None):
-    # Build model
     model = RRDBNet(
         in_channels=3,
         out_channels=3,
@@ -29,7 +28,6 @@ def train(config, resume_checkpoint=None):
     optimizer = optim.Adam(model.parameters(), lr=config["lr"])
     start_epoch = 0
 
-    # 🔁 Resume logic
     if resume_checkpoint and os.path.exists(resume_checkpoint):
         checkpoint = torch.load(resume_checkpoint, map_location=device)
         model.load_state_dict(checkpoint["model"])
@@ -37,19 +35,15 @@ def train(config, resume_checkpoint=None):
         start_epoch = checkpoint["epoch"] + 1
         print(f"🔄 Resumed training from epoch {start_epoch}")
 
-    # Data
     dataset = SRDataset(config["train_lr_dir"], config["train_hr_dir"], config["image_size"])
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
 
-    # Loss functions
     criterion = nn.L1Loss()
     structure_loss = StructureAwareLoss().to(device)
 
-    # 📁 Create folders
     os.makedirs("results", exist_ok=True)
     os.makedirs("benchmarks", exist_ok=True)
 
-    # 📈 Metrics
     psnr_list, ssim_list, loss_list = [], [], []
 
     for epoch in range(start_epoch, config["epochs"]):
@@ -60,27 +54,37 @@ def train(config, resume_checkpoint=None):
             lr, hr = lr.to(device), hr.to(device)
             sr = model(lr)
 
+            # ✅ Clamp output to prevent exploding predictions
+            sr = torch.clamp(sr, 0.0, 1.0)
+
             loss_pix = criterion(sr, hr)
             loss_struct = structure_loss(sr, hr)
-            loss = loss_pix + 0.1 * loss_struct
+
+            # ✅ Reduced structural loss weight
+            loss = loss_pix + 0.05 * loss_struct
 
             optimizer.zero_grad()
             loss.backward()
+
+            # ✅ Gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
+
             optimizer.step()
             running_loss += loss.item()
 
         avg_loss = running_loss / len(dataloader)
         loss_list.append(avg_loss)
 
-        # Evaluate on one batch
+        # ✅ Evaluation on 1 sample
         model.eval()
         with torch.no_grad():
             val_lr, val_hr = next(iter(dataloader))
             val_lr, val_hr = val_lr.to(device), val_hr.to(device)
             val_sr = model(val_lr)
+            val_sr = torch.clamp(val_sr, 0.0, 1.0)
 
-            sr_np = val_sr[0].cpu().permute(1, 2, 0).clamp(0, 1).numpy()
-            hr_np = val_hr[0].cpu().permute(1, 2, 0).clamp(0, 1).numpy()
+            sr_np = val_sr[0].cpu().permute(1, 2, 0).numpy()
+            hr_np = val_hr[0].cpu().permute(1, 2, 0).numpy()
 
             sr_np = (sr_np * 255).astype(np.uint8)
             hr_np = (hr_np * 255).astype(np.uint8)
@@ -93,18 +97,16 @@ def train(config, resume_checkpoint=None):
 
         print(f"✅ Epoch {epoch+1}: Loss = {avg_loss:.4f} | PSNR = {psnr:.2f} dB | SSIM = {ssim:.4f}")
 
-        # Save model every 2 epochs
         if (epoch + 1) % 2 == 0:
             torch.save(model.state_dict(), f"results/model_epoch{epoch+1}.pth")
 
-        # Save checkpoint for resuming
         torch.save({
             "epoch": epoch,
             "model": model.state_dict(),
             "optimizer": optimizer.state_dict()
         }, "results/latest_checkpoint.pth")
 
-        # Save metrics
+        # ✅ Save metrics every epoch
         np.save("benchmarks/psnr.npy", np.array(psnr_list))
         np.save("benchmarks/ssim.npy", np.array(ssim_list))
         np.save("benchmarks/loss.npy", np.array(loss_list))
