@@ -7,6 +7,8 @@ from losses.structure_loss import StructureAwareLoss
 from utils.dataloader import SRDataset
 import json, os
 from tqdm import tqdm
+import numpy as np
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -39,15 +41,21 @@ def train(config, resume_checkpoint=None):
     dataset = SRDataset(config["train_lr_dir"], config["train_hr_dir"], config["image_size"])
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
 
-    # Loss
+    # Loss functions
     criterion = nn.L1Loss()
     structure_loss = StructureAwareLoss().to(device)
 
+    # 📁 Create folders
     os.makedirs("results", exist_ok=True)
+    os.makedirs("benchmarks", exist_ok=True)
+
+    # 📈 Metrics
+    psnr_list, ssim_list, loss_list = [], [], []
 
     for epoch in range(start_epoch, config["epochs"]):
         model.train()
         running_loss = 0.0
+
         for lr, hr in tqdm(dataloader, desc=f"Epoch {epoch+1}/{config['epochs']}"):
             lr, hr = lr.to(device), hr.to(device)
             sr = model(lr)
@@ -62,18 +70,44 @@ def train(config, resume_checkpoint=None):
             running_loss += loss.item()
 
         avg_loss = running_loss / len(dataloader)
-        print(f"✅ Epoch {epoch+1}: Loss = {avg_loss:.4f}")
+        loss_list.append(avg_loss)
+
+        # Evaluate on one batch
+        model.eval()
+        with torch.no_grad():
+            val_lr, val_hr = next(iter(dataloader))
+            val_lr, val_hr = val_lr.to(device), val_hr.to(device)
+            val_sr = model(val_lr)
+
+            sr_np = val_sr[0].cpu().permute(1, 2, 0).clamp(0, 1).numpy()
+            hr_np = val_hr[0].cpu().permute(1, 2, 0).clamp(0, 1).numpy()
+
+            sr_np = (sr_np * 255).astype(np.uint8)
+            hr_np = (hr_np * 255).astype(np.uint8)
+
+            psnr = peak_signal_noise_ratio(hr_np, sr_np, data_range=255)
+            ssim = structural_similarity(hr_np, sr_np, channel_axis=2)
+
+            psnr_list.append(psnr)
+            ssim_list.append(ssim)
+
+        print(f"✅ Epoch {epoch+1}: Loss = {avg_loss:.4f} | PSNR = {psnr:.2f} dB | SSIM = {ssim:.4f}")
 
         # Save model every 2 epochs
         if (epoch + 1) % 2 == 0:
             torch.save(model.state_dict(), f"results/model_epoch{epoch+1}.pth")
 
-        # Save full checkpoint (for resuming)
+        # Save checkpoint for resuming
         torch.save({
             "epoch": epoch,
             "model": model.state_dict(),
             "optimizer": optimizer.state_dict()
         }, "results/latest_checkpoint.pth")
+
+        # Save metrics
+        np.save("benchmarks/psnr.npy", np.array(psnr_list))
+        np.save("benchmarks/ssim.npy", np.array(ssim_list))
+        np.save("benchmarks/loss.npy", np.array(loss_list))
 
 if __name__ == "__main__":
     import argparse
