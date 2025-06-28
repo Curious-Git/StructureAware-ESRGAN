@@ -28,12 +28,17 @@ def train(config, resume_checkpoint=None):
     optimizer = optim.Adam(model.parameters(), lr=config["lr"])
     start_epoch = 0
 
-    if resume_checkpoint and os.path.exists(resume_checkpoint):
-        checkpoint = torch.load(resume_checkpoint, map_location=device)
+    # ✅ Auto resume from latest checkpoint or user-specified path
+    resume_path = resume_checkpoint or "results/latest_checkpoint.pth"
+    if os.path.exists(resume_path):
+        print(f"🔄 Found checkpoint. Resuming from: {resume_path}")
+        checkpoint = torch.load(resume_path, map_location=device)
         model.load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
         start_epoch = checkpoint["epoch"] + 1
-        print(f"🔄 Resumed training from epoch {start_epoch}")
+        print(f"✅ Resumed training from epoch {start_epoch}")
+    else:
+        print("🆕 No checkpoint found. Starting fresh from epoch 0")
 
     dataset = SRDataset(config["train_lr_dir"], config["train_hr_dir"], config["image_size"])
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
@@ -53,29 +58,22 @@ def train(config, resume_checkpoint=None):
         for lr, hr in tqdm(dataloader, desc=f"Epoch {epoch+1}/{config['epochs']}"):
             lr, hr = lr.to(device), hr.to(device)
             sr = model(lr)
-
-            # ✅ Clamp output to prevent exploding predictions
             sr = torch.clamp(sr, 0.0, 1.0)
 
             loss_pix = criterion(sr, hr)
             loss_struct = structure_loss(sr, hr)
-
-            # ✅ Reduced structural loss weight
-            loss = loss_pix + 0.05 * loss_struct
+            loss = loss_pix + 0.05 * loss_struct  # ✅ reduced weight for stability
 
             optimizer.zero_grad()
             loss.backward()
-
-            # ✅ Gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
-
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 5)  # ✅ gradient clipping
             optimizer.step()
             running_loss += loss.item()
 
         avg_loss = running_loss / len(dataloader)
         loss_list.append(avg_loss)
 
-        # ✅ Evaluation on 1 sample
+        # ✅ Evaluate PSNR and SSIM on one sample
         model.eval()
         with torch.no_grad():
             val_lr, val_hr = next(iter(dataloader))
@@ -106,7 +104,6 @@ def train(config, resume_checkpoint=None):
             "optimizer": optimizer.state_dict()
         }, "results/latest_checkpoint.pth")
 
-        # ✅ Save metrics every epoch
         np.save("benchmarks/psnr.npy", np.array(psnr_list))
         np.save("benchmarks/ssim.npy", np.array(ssim_list))
         np.save("benchmarks/loss.npy", np.array(loss_list))
