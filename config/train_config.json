@@ -1,5 +1,5 @@
 {
-  "epochs": 5,
+  "epochs": 200,
   "batch_size": 4,
   "lr": 0.0002,
   "train_hr_dir": "data/DIV2K_train_HR",
