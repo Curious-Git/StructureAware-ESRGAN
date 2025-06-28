@@ -62,7 +62,7 @@ def train(config, resume_checkpoint=None):
 
             loss_pix = criterion(sr, hr)
             loss_struct = structure_loss(sr, hr)
-            loss = loss_pix + 0.05 * loss_struct  # ✅ reduced weight for stability
+            loss = loss_pix + 0.03 * loss_struct  # ✅ reduced weight for stability
 
             optimizer.zero_grad()
             loss.backward()
