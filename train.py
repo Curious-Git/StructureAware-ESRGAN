@@ -9,6 +9,7 @@ import json, os
 from tqdm import tqdm
 import numpy as np
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+import random
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -28,7 +29,7 @@ def train(config, resume_checkpoint=None):
     optimizer = optim.Adam(model.parameters(), lr=config["lr"])
     start_epoch = 0
 
-    # ✅ Auto resume from latest checkpoint or user-specified path
+    # Auto resume logic
     resume_path = resume_checkpoint or "results/latest_checkpoint.pth"
     if os.path.exists(resume_path):
         print(f"🔄 Found checkpoint. Resuming from: {resume_path}")
@@ -62,38 +63,52 @@ def train(config, resume_checkpoint=None):
 
             loss_pix = criterion(sr, hr)
             loss_struct = structure_loss(sr, hr)
-            loss = loss_pix + 0.03 * loss_struct  # ✅ reduced weight for stability
+            loss = loss_pix + 0.03 * loss_struct  # 👈 Adjusted weight for structure loss
 
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 5)  # ✅ gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
             optimizer.step()
+
             running_loss += loss.item()
 
         avg_loss = running_loss / len(dataloader)
         loss_list.append(avg_loss)
 
-        # ✅ Evaluate PSNR and SSIM on one sample
+        # ✅ Evaluation over 5 random batches
         model.eval()
+        psnr_sum = 0.0
+        ssim_sum = 0.0
+        eval_samples = 5
         with torch.no_grad():
-            val_lr, val_hr = next(iter(dataloader))
-            val_lr, val_hr = val_lr.to(device), val_hr.to(device)
-            val_sr = model(val_lr)
-            val_sr = torch.clamp(val_sr, 0.0, 1.0)
+            sample_indices = random.sample(range(len(dataloader)), min(eval_samples, len(dataloader)))
+            for i, (val_lr, val_hr) in enumerate(dataloader):
+                if i not in sample_indices:
+                    continue
+                val_lr, val_hr = val_lr.to(device), val_hr.to(device)
+                val_sr = model(val_lr)
+                val_sr = torch.clamp(val_sr, 0.0, 1.0)
 
-            sr_np = val_sr[0].cpu().permute(1, 2, 0).numpy()
-            hr_np = val_hr[0].cpu().permute(1, 2, 0).numpy()
+                for j in range(val_sr.size(0)):
+                    sr_np = val_sr[j].cpu().permute(1, 2, 0).numpy()
+                    hr_np = val_hr[j].cpu().permute(1, 2, 0).numpy()
 
-            sr_np = (sr_np * 255).astype(np.uint8)
-            hr_np = (hr_np * 255).astype(np.uint8)
+                    sr_np = (sr_np * 255).astype(np.uint8)
+                    hr_np = (hr_np * 255).astype(np.uint8)
 
-            psnr = peak_signal_noise_ratio(hr_np, sr_np, data_range=255)
-            ssim = structural_similarity(hr_np, sr_np, channel_axis=2)
+                    psnr = peak_signal_noise_ratio(hr_np, sr_np, data_range=255)
+                    ssim = structural_similarity(hr_np, sr_np, channel_axis=2)
 
-            psnr_list.append(psnr)
-            ssim_list.append(ssim)
+                    psnr_sum += psnr
+                    ssim_sum += ssim
 
-        print(f"✅ Epoch {epoch+1}: Loss = {avg_loss:.4f} | PSNR = {psnr:.2f} dB | SSIM = {ssim:.4f}")
+        num_eval_images = len(sample_indices) * val_sr.size(0)
+        avg_psnr = psnr_sum / num_eval_images
+        avg_ssim = ssim_sum / num_eval_images
+        psnr_list.append(avg_psnr)
+        ssim_list.append(avg_ssim)
+
+        print(f"✅ Epoch {epoch+1}: Loss = {avg_loss:.4f} | PSNR = {avg_psnr:.2f} dB | SSIM = {avg_ssim:.4f}")
 
         if (epoch + 1) % 2 == 0:
             torch.save(model.state_dict(), f"results/model_epoch{epoch+1}.pth")
