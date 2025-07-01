@@ -30,7 +30,7 @@ def train(config, resume_checkpoint=None):
     start_epoch = 0
 
     # Auto resume logic
-    resume_path = resume_checkpoint or "results/latest_checkpoint.pth"
+    resume_path = resume_checkpoint or "results/model_epoch98.pth"
     if os.path.exists(resume_path):
         print(f"🔄 Found checkpoint. Resuming from: {resume_path}")
         checkpoint = torch.load(resume_path, map_location=device)
