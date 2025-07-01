@@ -30,14 +30,15 @@ def train(config, resume_checkpoint=None):
     start_epoch = 0
 
     # Auto resume logic
-   resume_path = resume_checkpoint or "results/model_epoch98.pth"
-if os.path.exists(resume_path):
-    print(f"🔄 Found model weights. Resuming from: {resume_path}")
-    model.load_state_dict(torch.load(resume_path, map_location=device))
-    start_epoch = 98 + 1  # Start from next epoch
-    print(f"✅ Resumed training from epoch {start_epoch}")
-else:
-    print("🆕 No checkpoint found. Starting fresh from epoch 0")
+    resume_path = resume_checkpoint or "results/model_epoch98.pth"
+    if os.path.exists(resume_path):
+        print(f"🔄 Found model weights. Resuming from: {resume_path}")
+        model.load_state_dict(torch.load(resume_path, map_location=device))
+        start_epoch = 98 + 1  # Start from next epoch
+        print(f"✅ Resumed training from epoch {start_epoch}")
+    else:
+        print("🆕 No checkpoint found. Starting fresh from epoch 0")
+
 
     dataset = SRDataset(config["train_lr_dir"], config["train_hr_dir"], config["image_size"])
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
