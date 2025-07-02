@@ -34,7 +34,7 @@ def train(config, resume_checkpoint=None):
     if os.path.exists(resume_path):
         print(f"🔄 Found model weights. Resuming from: {resume_path}")
         model.load_state_dict(torch.load(resume_path, map_location=device))
-        start_epoch = 98 + 1  # Start from next epoch
+        start_epoch = 112 + 1  # Start from next epoch
         print(f"✅ Resumed training from epoch {start_epoch}")
     else:
         print("🆕 No checkpoint found. Starting fresh from epoch 0")
