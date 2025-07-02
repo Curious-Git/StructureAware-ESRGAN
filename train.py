@@ -30,7 +30,7 @@ def train(config, resume_checkpoint=None):
     start_epoch = 0
 
     # Auto resume logic
-    resume_path = resume_checkpoint or "results/model_epoch98.pth"
+    resume_path = resume_checkpoint or "results/model_epoch112.pth"
     if os.path.exists(resume_path):
         print(f"🔄 Found model weights. Resuming from: {resume_path}")
         model.load_state_dict(torch.load(resume_path, map_location=device))
@@ -62,7 +62,7 @@ def train(config, resume_checkpoint=None):
 
             loss_pix = criterion(sr, hr)
             loss_struct = structure_loss(sr, hr)
-            loss = loss_pix + 0.03 * loss_struct  # 👈 Adjusted weight for structure loss
+            loss = loss_pix + 0.02 * loss_struct  # 👈 Adjusted weight for structure loss
 
             optimizer.zero_grad()
             loss.backward()
